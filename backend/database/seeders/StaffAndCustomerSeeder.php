@@ -17,7 +17,9 @@ class StaffAndCustomerSeeder extends Seeder
 {
     public function run(): void
     {
-        $password = Hash::make('password');
+        // Override in production via SEED_PASSWORD in .env so the repo never
+        // ships a usable credential. Falls back to 'password' for local dev.
+        $password = Hash::make(env('SEED_PASSWORD', 'password'));
         $services = Service::pluck('id', 'slug');
 
         // --- Admin accounts ---------------------------------------------------
