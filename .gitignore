@@ -1,0 +1,6 @@
+# Portable Windows PHP toolchain — local dev only, not needed on Linux/Railway
+/tools/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db

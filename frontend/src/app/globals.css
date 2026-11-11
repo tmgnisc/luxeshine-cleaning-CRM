@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* LuxeShine Cleaning — warm cream canvas, navy-blue brand */
+    --background: 44 38% 95%; /* #F7F4EC-ish cream */
+    --foreground: 217 28% 16%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 217 28% 16%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 217 28% 16%;
+
+    --primary: 217 60% 32%; /* navy blue #20477F */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 44 24% 90%;
+    --secondary-foreground: 217 28% 22%;
+
+    --muted: 44 20% 91%;
+    --muted-foreground: 217 10% 42%;
+
+    --accent: 217 44% 92%;
+    --accent-foreground: 217 60% 28%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 42 20% 85%;
+    --input: 42 20% 85%;
+    --ring: 217 60% 32%;
+
+    --radius: 0.9rem;
+
+    /* Deep navy sidebar */
+    --sidebar: 218 42% 15%; /* #16233F-ish navy */
+    --sidebar-foreground: 215 20% 82%;
+    --sidebar-muted: 215 14% 62%;
+    --sidebar-accent: 217 65% 55%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 218 34% 24%;
+
+    /* Status + chart palette */
+    --chart-1: 217 65% 48%;
+    --chart-2: 210 70% 55%;
+    --chart-3: 32 90% 55%;
+    --chart-4: 175 45% 45%;
+    --chart-5: 280 45% 60%;
+  }
+
+  .dark {
+    --background: 218 28% 10%;
+    --foreground: 215 20% 90%;
+
+    --card: 218 24% 13%;
+    --card-foreground: 215 20% 90%;
+
+    --popover: 218 24% 13%;
+    --popover-foreground: 215 20% 90%;
+
+    --primary: 217 70% 60%;
+    --primary-foreground: 218 40% 10%;
+
+    --secondary: 218 18% 20%;
+    --secondary-foreground: 215 20% 90%;
+
+    --muted: 218 16% 20%;
+    --muted-foreground: 215 12% 62%;
+
+    --accent: 218 20% 22%;
+    --accent-foreground: 215 20% 90%;
+
+    --destructive: 0 62% 48%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 218 18% 22%;
+    --input: 218 18% 24%;
+    --ring: 217 70% 60%;
+
+    --sidebar: 218 36% 9%;
+    --sidebar-foreground: 215 20% 82%;
+    --sidebar-muted: 215 12% 56%;
+    --sidebar-accent: 217 70% 60%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 218 28% 18%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
