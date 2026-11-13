@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Enums\BookingStatus;
 use App\Enums\VerificationStatus;
 use App\Http\Concerns\ApiResponses;
+use App\Http\Concerns\HandlesBulkDeletion;
 use App\Http\Concerns\HandlesResourceQueries;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreCleanerRequest;
@@ -21,7 +22,7 @@ use Illuminate\Support\Facades\Storage;
 
 class CleanerController extends Controller
 {
-    use ApiResponses, HandlesResourceQueries;
+    use ApiResponses, HandlesBulkDeletion, HandlesResourceQueries;
 
     public function __construct(
         private readonly CleanerService $cleaners,
@@ -190,6 +191,43 @@ class CleanerController extends Controller
         $this->activity->log('cleaner.deleted', $cleaner);
 
         return $this->message('Cleaner removed.');
+    }
+
+    public function bulkDestroy(Request $request): JsonResponse
+    {
+        $ids = $this->validateBulkIds($request, 'cleaners');
+
+        $result = $this->runBulkDelete(
+            Cleaner::with('user')->whereIn('id', $ids)->get(),
+            function (Cleaner $cleaner): ?string {
+                $hasUpcoming = $cleaner->bookings()
+                    ->whereDate('scheduled_date', '>=', today())
+                    ->whereIn('status', [
+                        BookingStatus::Pending->value,
+                        BookingStatus::Confirmed->value,
+                        BookingStatus::InProgress->value,
+                    ])
+                    ->exists();
+
+                if ($hasUpcoming) {
+                    return 'Has upcoming bookings that must be reassigned first.';
+                }
+
+                $cleaner->user?->update(['is_active' => false]);
+                $cleaner->delete();
+
+                return null;
+            },
+        );
+
+        $this->activity->log('cleaner.bulk_deleted', null, $result);
+
+        $message = "Removed {$result['deleted']} cleaner(s).";
+        if ($result['skipped'] !== []) {
+            $message .= ' '.count($result['skipped']).' skipped due to upcoming bookings.';
+        }
+
+        return $this->ok($result, $message);
     }
 
     public function verificationCounts(): JsonResponse

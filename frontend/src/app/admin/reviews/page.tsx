@@ -1,11 +1,13 @@
 "use client";
 
+import { BulkActionBar } from "@/components/shared/bulk-action-bar";
 import { PageHeader } from "@/components/shared/page-header";
 import { Pagination } from "@/components/shared/pagination";
 import { StarRating } from "@/components/shared/star-rating";
 import { StatCard } from "@/components/shared/stat-card";
 import { EmptyState, LoadingRows } from "@/components/shared/states";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -13,9 +15,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { apiGet, apiGetPage, apiSend } from "@/lib/api";
+import { useBulkSelect } from "@/hooks/use-bulk-select";
+import { apiGet, apiGetPage, apiSend, ApiError } from "@/lib/api";
 import { formatDate } from "@/lib/format";
-import type { Review } from "@/lib/types";
+import type { BulkDeleteResult, Review } from "@/lib/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MessageSquare, Star, Trash2 } from "lucide-react";
 import { useState } from "react";
@@ -56,6 +59,18 @@ export default function AdminReviewsPage() {
     onSuccess: () => { invalidate(); setReplyFor(null); toast.success("Reply saved."); },
   });
 
+  const rows = list.data?.data ?? [];
+  const bulk = useBulkSelect(rows.map((r) => r.id));
+  const bulkDelete = useMutation({
+    mutationFn: () => apiSend<BulkDeleteResult>("post", "admin/reviews/bulk-delete", { ids: bulk.ids }),
+    onSuccess: (res) => {
+      toast.success(`Deleted ${res.deleted} review${res.deleted === 1 ? "" : "s"}.`);
+      bulk.clear();
+      invalidate();
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : "Could not delete selection."),
+  });
+
   return (
     <div className="space-y-5">
       <PageHeader title="Reviews" subtitle="Moderate customer feedback before it appears on the website." />
@@ -93,6 +108,13 @@ export default function AdminReviewsPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={bulk.allOnPageSelected ? true : bulk.someOnPageSelected ? "indeterminate" : false}
+                    onCheckedChange={() => bulk.toggleAll()}
+                    aria-label="Select all"
+                  />
+                </TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Cleaner</TableHead>
                 <TableHead>Rating</TableHead>
@@ -104,7 +126,14 @@ export default function AdminReviewsPage() {
             </TableHeader>
             <TableBody>
               {list.data!.data.map((r) => (
-                <TableRow key={r.id}>
+                <TableRow key={r.id} data-state={bulk.isSelected(r.id) ? "selected" : undefined}>
+                  <TableCell>
+                    <Checkbox
+                      checked={bulk.isSelected(r.id)}
+                      onCheckedChange={() => bulk.toggle(r.id)}
+                      aria-label={`Select review by ${r.customer_name}`}
+                    />
+                  </TableCell>
                   <TableCell className="font-medium">{r.customer_name}</TableCell>
                   <TableCell>{r.cleaner_name}</TableCell>
                   <TableCell><StarRating value={r.rating} size={14} /></TableCell>
@@ -133,6 +162,14 @@ export default function AdminReviewsPage() {
       )}
 
       <Pagination meta={list.data?.meta} onPage={setPage} />
+
+      <BulkActionBar
+        count={bulk.count}
+        noun="review"
+        loading={bulkDelete.isPending}
+        onClear={bulk.clear}
+        onDelete={() => bulkDelete.mutate()}
+      />
 
       <Dialog open={replyFor !== null} onOpenChange={(o) => !o && setReplyFor(null)}>
         <DialogContent>

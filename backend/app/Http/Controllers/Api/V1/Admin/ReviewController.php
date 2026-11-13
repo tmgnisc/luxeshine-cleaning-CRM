@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Concerns\ApiResponses;
+use App\Http\Concerns\HandlesBulkDeletion;
 use App\Http\Concerns\HandlesResourceQueries;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ReplyReviewRequest;
@@ -15,7 +16,7 @@ use Illuminate\Http\Request;
 
 class ReviewController extends Controller
 {
-    use ApiResponses, HandlesResourceQueries;
+    use ApiResponses, HandlesBulkDeletion, HandlesResourceQueries;
 
     public function __construct(
         private readonly ReviewService $reviews,
@@ -72,5 +73,23 @@ class ReviewController extends Controller
         $this->activity->log('review.deleted', $review);
 
         return $this->message('Review deleted.');
+    }
+
+    public function bulkDestroy(Request $request): JsonResponse
+    {
+        $ids = $this->validateBulkIds($request, 'reviews');
+
+        $result = $this->runBulkDelete(
+            Review::whereIn('id', $ids)->get(),
+            function (Review $review): ?string {
+                $this->reviews->delete($review);
+
+                return null;
+            },
+        );
+
+        $this->activity->log('review.bulk_deleted', null, $result);
+
+        return $this->ok($result, "Deleted {$result['deleted']} review(s).");
     }
 }

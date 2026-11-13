@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Enums\BookingStatus;
 use App\Enums\UserRole;
 use App\Http\Concerns\ApiResponses;
+use App\Http\Concerns\HandlesBulkDeletion;
 use App\Http\Concerns\HandlesResourceQueries;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreCustomerRequest;
@@ -23,7 +24,7 @@ use Illuminate\Support\Str;
 
 class CustomerController extends Controller
 {
-    use ApiResponses, HandlesResourceQueries;
+    use ApiResponses, HandlesBulkDeletion, HandlesResourceQueries;
 
     public function __construct(
         private readonly ActivityLogger $activity,
@@ -143,6 +144,25 @@ class CustomerController extends Controller
         $this->activity->log('customer.deleted', $customer);
 
         return $this->message('Customer removed.');
+    }
+
+    public function bulkDestroy(Request $request): JsonResponse
+    {
+        $ids = $this->validateBulkIds($request, 'customers');
+
+        $result = $this->runBulkDelete(
+            Customer::with('user')->whereIn('id', $ids)->get(),
+            function (Customer $customer): ?string {
+                $customer->user?->update(['is_active' => false]);
+                $customer->delete();
+
+                return null;
+            },
+        );
+
+        $this->activity->log('customer.bulk_deleted', null, $result);
+
+        return $this->ok($result, "Removed {$result['deleted']} customer(s).");
     }
 
     public function bookings(Request $request, Customer $customer): JsonResponse

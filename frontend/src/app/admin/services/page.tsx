@@ -1,15 +1,18 @@
 "use client";
 
 import { ServiceFormDialog } from "@/components/admin/service-form-dialog";
+import { BulkActionBar } from "@/components/shared/bulk-action-bar";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState, LoadingRows } from "@/components/shared/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useBulkSelect } from "@/hooks/use-bulk-select";
 import { useCurrency } from "@/hooks/use-settings";
 import { apiGetPage, apiSend } from "@/lib/api";
-import type { Service } from "@/lib/types";
+import type { BulkDeleteResult, Service } from "@/lib/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
@@ -38,6 +41,19 @@ export default function AdminServicesPage() {
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Cannot delete this service."),
   });
 
+  const rows = list.data?.data ?? [];
+  const bulk = useBulkSelect(rows.map((s) => s.id));
+  const bulkDelete = useMutation({
+    mutationFn: () => apiSend<BulkDeleteResult>("post", "admin/services/bulk-delete", { ids: bulk.ids }),
+    onSuccess: (res) => {
+      const skipped = res.skipped.length;
+      toast.success(`Deleted ${res.deleted} service${res.deleted === 1 ? "" : "s"}.${skipped ? ` ${skipped} skipped (have bookings).` : ""}`);
+      bulk.clear();
+      qc.invalidateQueries({ queryKey: ["admin", "services"] });
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Could not delete selection."),
+  });
+
   const liveCount = list.data?.data.filter((s) => s.is_live).length ?? 0;
 
   return (
@@ -61,6 +77,13 @@ export default function AdminServicesPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={bulk.allOnPageSelected ? true : bulk.someOnPageSelected ? "indeterminate" : false}
+                    onCheckedChange={() => bulk.toggleAll()}
+                    aria-label="Select all"
+                  />
+                </TableHead>
                 <TableHead>Service</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Price/hr</TableHead>
@@ -72,7 +95,14 @@ export default function AdminServicesPage() {
             </TableHeader>
             <TableBody>
               {list.data!.data.map((s) => (
-                <TableRow key={s.id}>
+                <TableRow key={s.id} data-state={bulk.isSelected(s.id) ? "selected" : undefined}>
+                  <TableCell>
+                    <Checkbox
+                      checked={bulk.isSelected(s.id)}
+                      onCheckedChange={() => bulk.toggle(s.id)}
+                      aria-label={`Select ${s.name}`}
+                    />
+                  </TableCell>
                   <TableCell>
                     <div className="font-medium">{s.name}</div>
                     <div className="max-w-xs truncate text-xs text-muted-foreground">{s.short_description}</div>
@@ -99,6 +129,14 @@ export default function AdminServicesPage() {
           </Table>
         </div>
       )}
+
+      <BulkActionBar
+        count={bulk.count}
+        noun="service"
+        loading={bulkDelete.isPending}
+        onClear={bulk.clear}
+        onDelete={() => bulkDelete.mutate()}
+      />
 
       <ServiceFormDialog service={editing} open={showForm} onOpenChange={(o) => { setShowForm(o); if (!o) setEditing(null); }} />
     </div>

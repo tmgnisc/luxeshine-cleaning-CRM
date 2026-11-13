@@ -6,17 +6,20 @@ import { BookingFormDialog } from "@/components/admin/booking-form-dialog";
 import { PageHeader } from "@/components/shared/page-header";
 import { Pagination } from "@/components/shared/pagination";
 import { LoadingRows, EmptyState, ErrorState } from "@/components/shared/states";
+import { BulkActionBar } from "@/components/shared/bulk-action-bar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useBulkSelect } from "@/hooks/use-bulk-select";
 import { useCurrency } from "@/hooks/use-settings";
 import { apiGet, apiGetPage, apiSend } from "@/lib/api";
 import { formatDate, formatTime } from "@/lib/format";
 import { BOOKING_STATUS, NEXT_STATUSES } from "@/lib/status";
-import type { Booking, BookingStatus } from "@/lib/types";
+import type { Booking, BookingStatus, BulkDeleteResult } from "@/lib/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { CalendarPlus, Download, Eye, Trash2, UserPlus } from "lucide-react";
@@ -82,6 +85,20 @@ export default function AdminBookingsPage() {
     },
   });
 
+  const rows = list.data?.data ?? [];
+  const bulk = useBulkSelect(rows.map((b) => b.id));
+
+  const bulkDelete = useMutation({
+    mutationFn: () => apiSend<BulkDeleteResult>("post", "admin/bookings/bulk-delete", { ids: bulk.ids }),
+    onSuccess: (res) => {
+      toast.success(`Deleted ${res.deleted} booking${res.deleted === 1 ? "" : "s"}.`);
+      bulk.clear();
+      qc.invalidateQueries({ queryKey: ["admin", "bookings"] });
+      qc.invalidateQueries({ queryKey: ["admin", "status-counts"] });
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Could not delete selection."),
+  });
+
   const exportCsv = () => {
     const qs = new URLSearchParams(
       Object.entries(params).filter(([k]) => !["page", "per_page"].includes(k)).map(([k, v]) => [k, String(v)]),
@@ -143,6 +160,13 @@ export default function AdminBookingsPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={bulk.allOnPageSelected ? true : bulk.someOnPageSelected ? "indeterminate" : false}
+                    onCheckedChange={() => bulk.toggleAll()}
+                    aria-label="Select all"
+                  />
+                </TableHead>
                 <TableHead>Reference</TableHead>
                 <TableHead>Date &amp; time</TableHead>
                 <TableHead>Service</TableHead>
@@ -156,7 +180,14 @@ export default function AdminBookingsPage() {
             </TableHeader>
             <TableBody>
               {list.data!.data.map((b) => (
-                <TableRow key={b.id}>
+                <TableRow key={b.id} data-state={bulk.isSelected(b.id) ? "selected" : undefined}>
+                  <TableCell>
+                    <Checkbox
+                      checked={bulk.isSelected(b.id)}
+                      onCheckedChange={() => bulk.toggle(b.id)}
+                      aria-label={`Select ${b.reference}`}
+                    />
+                  </TableCell>
                   <TableCell className="font-medium">{b.reference}</TableCell>
                   <TableCell className="whitespace-nowrap">
                     {formatDate(b.scheduled_date)}
@@ -212,6 +243,14 @@ export default function AdminBookingsPage() {
       )}
 
       <Pagination meta={list.data?.meta} onPage={setPage} />
+
+      <BulkActionBar
+        count={bulk.count}
+        noun="booking"
+        loading={bulkDelete.isPending}
+        onClear={bulk.clear}
+        onDelete={() => bulkDelete.mutate()}
+      />
 
       <BookingFormDialog open={showNew} onOpenChange={setShowNew} />
       <BookingDetailSheet bookingId={detailId} open={detailId !== null} onOpenChange={(o) => !o && setDetailId(null)} />

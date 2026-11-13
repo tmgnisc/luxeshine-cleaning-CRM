@@ -20,8 +20,8 @@ class PublicEndpointsTest extends TestCase
 
         $this->getJson('/api/v1/public/settings')
             ->assertOk()
-            ->assertJsonPath('data.site_title', 'Dust to Done')
-            ->assertJsonPath('data.currency', 'AED')
+            ->assertJsonPath('data.site_title', 'LuxeShine Cleaning')
+            ->assertJsonPath('data.currency', 'NZD')
             ->assertJsonPath('data.accepting_bookings', true);
     }
 

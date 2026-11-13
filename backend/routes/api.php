@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\Admin\ActivityLogController;
 use App\Http\Controllers\Api\V1\Admin\BookingController as AdminBookingController;
+use App\Http\Controllers\Api\V1\Admin\CalendarFeedController;
 use App\Http\Controllers\Api\V1\Admin\CleanerController;
 use App\Http\Controllers\Api\V1\Admin\CustomerAddressController;
 use App\Http\Controllers\Api\V1\Admin\CustomerController;
@@ -146,6 +147,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
 
         // Reviews
         Route::get('reviews', [AdminReviewController::class, 'index']);
+        Route::post('reviews/bulk-delete', [AdminReviewController::class, 'bulkDestroy']);
         Route::get('reviews/stats', [AdminReviewController::class, 'stats']);
         Route::patch('reviews/{review}/publish', [AdminReviewController::class, 'publish']);
         Route::put('reviews/{review}/reply', [AdminReviewController::class, 'reply']);
@@ -154,6 +156,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         // Services
         Route::get('services', [ServiceController::class, 'index']);
         Route::post('services', [ServiceController::class, 'store']);
+        Route::post('services/bulk-delete', [ServiceController::class, 'bulkDestroy']);
         Route::post('services/reorder', [ServiceController::class, 'reorder']);
         Route::get('services/{service}', [ServiceController::class, 'show']);
         Route::match(['put', 'patch'], 'services/{service}', [ServiceController::class, 'update']);
@@ -170,6 +173,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         // Bookings
         Route::get('bookings', [AdminBookingController::class, 'index']);
         Route::post('bookings', [AdminBookingController::class, 'store']);
+        Route::post('bookings/bulk-delete', [AdminBookingController::class, 'bulkDestroy']);
         Route::get('bookings/status-counts', [AdminBookingController::class, 'statusCounts']);
         Route::get('bookings/export', [AdminBookingController::class, 'export']);
         Route::get('bookings/{booking}', [AdminBookingController::class, 'show']);
@@ -183,9 +187,18 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         // Schedule
         Route::get('schedule', [ScheduleController::class, 'index']);
 
+        // Calendar feeds (Airbnb / third-party iCal integrations)
+        Route::get('calendar-feeds', [CalendarFeedController::class, 'index']);
+        Route::post('calendar-feeds', [CalendarFeedController::class, 'store']);
+        Route::post('calendar-feeds/sync-all', [CalendarFeedController::class, 'syncAll']);
+        Route::post('calendar-feeds/{calendarFeed}/sync', [CalendarFeedController::class, 'sync']);
+        Route::match(['put', 'patch'], 'calendar-feeds/{calendarFeed}', [CalendarFeedController::class, 'update']);
+        Route::delete('calendar-feeds/{calendarFeed}', [CalendarFeedController::class, 'destroy']);
+
         // Cleaners (staff)
         Route::get('cleaners', [CleanerController::class, 'index']);
         Route::post('cleaners', [CleanerController::class, 'store']);
+        Route::post('cleaners/bulk-delete', [CleanerController::class, 'bulkDestroy']);
         Route::get('cleaners/verification-counts', [CleanerController::class, 'verificationCounts']);
         Route::get('cleaners/{cleaner}', [CleanerController::class, 'show']);
         Route::match(['put', 'patch'], 'cleaners/{cleaner}', [CleanerController::class, 'update']);
@@ -196,6 +209,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         // Customers
         Route::get('customers', [CustomerController::class, 'index']);
         Route::post('customers', [CustomerController::class, 'store']);
+        Route::post('customers/bulk-delete', [CustomerController::class, 'bulkDestroy']);
         Route::get('customers/{customer}', [CustomerController::class, 'show']);
         Route::match(['put', 'patch'], 'customers/{customer}', [CustomerController::class, 'update']);
         Route::delete('customers/{customer}', [CustomerController::class, 'destroy']);

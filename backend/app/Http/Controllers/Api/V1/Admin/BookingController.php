@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Enums\BookingSource;
 use App\Enums\BookingStatus;
 use App\Http\Concerns\ApiResponses;
+use App\Http\Concerns\HandlesBulkDeletion;
 use App\Http\Concerns\HandlesResourceQueries;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\AssignCleanerRequest;
@@ -26,7 +27,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class BookingController extends Controller
 {
-    use ApiResponses, HandlesResourceQueries;
+    use ApiResponses, HandlesBulkDeletion, HandlesResourceQueries;
 
     public function __construct(
         private readonly BookingService $bookings,
@@ -123,6 +124,24 @@ class BookingController extends Controller
         $this->activity->log('booking.deleted', $booking);
 
         return $this->message('Booking deleted.');
+    }
+
+    public function bulkDestroy(Request $request): JsonResponse
+    {
+        $ids = $this->validateBulkIds($request, 'bookings');
+
+        $result = $this->runBulkDelete(
+            Booking::whereIn('id', $ids)->get(),
+            function (Booking $booking): ?string {
+                $booking->delete();
+
+                return null;
+            },
+        );
+
+        $this->activity->log('booking.bulk_deleted', null, $result);
+
+        return $this->ok($result, "Deleted {$result['deleted']} booking(s).");
     }
 
     public function statusCounts(Request $request): JsonResponse

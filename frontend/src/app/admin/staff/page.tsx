@@ -1,6 +1,7 @@
 "use client";
 
 import { CleanerFormDialog } from "@/components/admin/cleaner-form-dialog";
+import { BulkActionBar } from "@/components/shared/bulk-action-bar";
 import { PageHeader } from "@/components/shared/page-header";
 import { Pagination } from "@/components/shared/pagination";
 import { PersonAvatar } from "@/components/shared/person-avatar";
@@ -8,12 +9,14 @@ import { StatCard } from "@/components/shared/stat-card";
 import { EmptyState, LoadingRows } from "@/components/shared/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { apiGet, apiGetPage, apiSend } from "@/lib/api";
-import type { Cleaner, VerificationStatus } from "@/lib/types";
+import { useBulkSelect } from "@/hooks/use-bulk-select";
+import { apiGet, apiGetPage, apiSend, ApiError } from "@/lib/api";
+import type { BulkDeleteResult, Cleaner, VerificationStatus } from "@/lib/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserCog } from "lucide-react";
 import Link from "next/link";
@@ -40,6 +43,19 @@ export default function AdminStaffPage() {
   const setAvail = useMutation({
     mutationFn: ({ id, value }: { id: number; value: boolean }) => apiSend("patch", `admin/cleaners/${id}/availability`, { is_available: value }),
     onSuccess: () => invalidate(),
+  });
+
+  const rows = list.data?.data ?? [];
+  const bulk = useBulkSelect(rows.map((c) => c.id));
+  const bulkDelete = useMutation({
+    mutationFn: () => apiSend<BulkDeleteResult>("post", "admin/cleaners/bulk-delete", { ids: bulk.ids }),
+    onSuccess: (res) => {
+      const skipped = res.skipped.length;
+      toast.success(`Removed ${res.deleted} cleaner${res.deleted === 1 ? "" : "s"}.${skipped ? ` ${skipped} skipped (upcoming bookings).` : ""}`);
+      bulk.clear();
+      invalidate();
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : "Could not delete selection."),
   });
 
   return (
@@ -74,6 +90,13 @@ export default function AdminStaffPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={bulk.allOnPageSelected ? true : bulk.someOnPageSelected ? "indeterminate" : false}
+                    onCheckedChange={() => bulk.toggleAll()}
+                    aria-label="Select all"
+                  />
+                </TableHead>
                 <TableHead>Cleaner</TableHead><TableHead>Contact</TableHead><TableHead>Skills</TableHead>
                 <TableHead>Rating</TableHead><TableHead>Jobs</TableHead><TableHead>Verification</TableHead>
                 <TableHead>Available</TableHead><TableHead className="text-right">Actions</TableHead>
@@ -81,7 +104,14 @@ export default function AdminStaffPage() {
             </TableHeader>
             <TableBody>
               {list.data!.data.map((c) => (
-                <TableRow key={c.id}>
+                <TableRow key={c.id} data-state={bulk.isSelected(c.id) ? "selected" : undefined}>
+                  <TableCell>
+                    <Checkbox
+                      checked={bulk.isSelected(c.id)}
+                      onCheckedChange={() => bulk.toggle(c.id)}
+                      aria-label={`Select ${c.name}`}
+                    />
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <PersonAvatar name={c.name} src={c.avatar_url} />
@@ -115,6 +145,13 @@ export default function AdminStaffPage() {
         </div>
       )}
       <Pagination meta={list.data?.meta} onPage={setPage} />
+      <BulkActionBar
+        count={bulk.count}
+        noun="cleaner"
+        loading={bulkDelete.isPending}
+        onClear={bulk.clear}
+        onDelete={() => bulkDelete.mutate()}
+      />
       <CleanerFormDialog open={showNew} onOpenChange={setShowNew} />
     </div>
   );

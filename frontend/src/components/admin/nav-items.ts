@@ -9,6 +9,7 @@ import {
   Settings,
   ShieldCheck,
   History,
+  PlugZap,
   type LucideIcon,
 } from "lucide-react";
 
@@ -24,6 +25,7 @@ export const ADMIN_NAV: NavItem[] = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard, exact: true },
   { label: "Bookings", href: "/admin/bookings", icon: ClipboardList },
   { label: "Schedule", href: "/admin/schedule", icon: CalendarDays },
+  { label: "Integrations", href: "/admin/integrations", icon: PlugZap },
   { label: "Staff", href: "/admin/staff", icon: UserCog },
   { label: "Customers", href: "/admin/customers", icon: Users },
   { label: "Services", href: "/admin/services", icon: Sparkles },

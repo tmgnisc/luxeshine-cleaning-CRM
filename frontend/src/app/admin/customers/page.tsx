@@ -1,11 +1,13 @@
 "use client";
 
+import { BulkActionBar } from "@/components/shared/bulk-action-bar";
 import { PageHeader } from "@/components/shared/page-header";
 import { Pagination } from "@/components/shared/pagination";
 import { PersonAvatar } from "@/components/shared/person-avatar";
 import { BookingStatusBadge } from "@/components/shared/status-badge";
 import { EmptyState, LoadingRows } from "@/components/shared/states";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -14,10 +16,11 @@ import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { useBulkSelect } from "@/hooks/use-bulk-select";
 import { useCurrency } from "@/hooks/use-settings";
 import { apiGetPage, apiSend, ApiError } from "@/lib/api";
 import { formatDate } from "@/lib/format";
-import type { Booking, Customer } from "@/lib/types";
+import type { Booking, BulkDeleteResult, Customer } from "@/lib/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Users } from "lucide-react";
 import { useState } from "react";
@@ -41,6 +44,18 @@ export default function AdminCustomersPage() {
     onError: (e) => toast.error(e instanceof ApiError ? e.message : "Could not create customer."),
   });
 
+  const rows = list.data?.data ?? [];
+  const bulk = useBulkSelect(rows.map((c) => c.id));
+  const bulkDelete = useMutation({
+    mutationFn: () => apiSend<BulkDeleteResult>("post", "admin/customers/bulk-delete", { ids: bulk.ids }),
+    onSuccess: (res) => {
+      toast.success(`Removed ${res.deleted} customer${res.deleted === 1 ? "" : "s"}.`);
+      bulk.clear();
+      qc.invalidateQueries({ queryKey: ["admin", "customers"] });
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : "Could not delete selection."),
+  });
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -60,6 +75,13 @@ export default function AdminCustomersPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={bulk.allOnPageSelected ? true : bulk.someOnPageSelected ? "indeterminate" : false}
+                    onCheckedChange={() => bulk.toggleAll()}
+                    aria-label="Select all"
+                  />
+                </TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Contact</TableHead>
                 <TableHead>Since</TableHead>
@@ -70,7 +92,14 @@ export default function AdminCustomersPage() {
             </TableHeader>
             <TableBody>
               {list.data!.data.map((c) => (
-                <TableRow key={c.id}>
+                <TableRow key={c.id} data-state={bulk.isSelected(c.id) ? "selected" : undefined}>
+                  <TableCell>
+                    <Checkbox
+                      checked={bulk.isSelected(c.id)}
+                      onCheckedChange={() => bulk.toggle(c.id)}
+                      aria-label={`Select ${c.name}`}
+                    />
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <PersonAvatar name={c.name} />
@@ -94,6 +123,14 @@ export default function AdminCustomersPage() {
       )}
 
       <Pagination meta={list.data?.meta} onPage={setPage} />
+
+      <BulkActionBar
+        count={bulk.count}
+        noun="customer"
+        loading={bulkDelete.isPending}
+        onClear={bulk.clear}
+        onDelete={() => bulkDelete.mutate()}
+      />
 
       {/* Create dialog */}
       <Dialog open={showNew} onOpenChange={setShowNew}>

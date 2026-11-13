@@ -11,17 +11,15 @@ import { apiGet, apiSend, ApiError } from "@/lib/api";
 import { formatDate, formatTime } from "@/lib/format";
 import { BOOKING_STATUS } from "@/lib/status";
 import { cn } from "@/lib/utils";
-import type { Booking, BookingStatus } from "@/lib/types";
+import type { BookingStatus, CalendarEvent, ScheduleDay } from "@/lib/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameDay, isSameMonth,
   startOfMonth, startOfWeek,
 } from "date-fns";
-import { CalendarPlus, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { CalendarPlus, ChevronLeft, ChevronRight, Home, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-
-interface ScheduleDay { date: string; bookings: Booking[] }
 
 const STATUS_DOT: Record<BookingStatus, string> = {
   pending: "bg-amber-400", confirmed: "bg-green-500", in_progress: "bg-blue-500",
@@ -54,12 +52,19 @@ export default function AdminSchedulePage() {
   });
 
   const byDate = useMemo(() => {
-    const map = new Map<string, Booking[]>();
+    const map = new Map<string, ScheduleDay["bookings"]>();
     data?.forEach((d) => map.set(d.date, d.bookings));
     return map;
   }, [data]);
 
+  const eventsByDate = useMemo(() => {
+    const map = new Map<string, CalendarEvent[]>();
+    data?.forEach((d) => { if (d.events?.length) map.set(d.date, d.events); });
+    return map;
+  }, [data]);
+
   const selectedBookings = selected ? byDate.get(selected) ?? [] : [];
+  const selectedEvents = selected ? eventsByDate.get(selected) ?? [] : [];
 
   const reschedule = useMutation({
     mutationFn: ({ id, date }: { id: number; date: string }) =>
@@ -111,6 +116,7 @@ export default function AdminSchedulePage() {
           {days.map((day) => {
             const key = format(day, "yyyy-MM-dd");
             const items = (byDate.get(key) ?? []).slice().sort((a, b) => a.start_time.localeCompare(b.start_time));
+            const dayEvents = eventsByDate.get(key) ?? [];
             const inMonth = isSameMonth(day, cursor);
             const isToday = isSameDay(day, new Date());
             return (
@@ -140,6 +146,22 @@ export default function AdminSchedulePage() {
                   </button>
                 </div>
                 <div className="mt-1 space-y-1">
+                  {dayEvents.slice(0, 2).map((ev) => (
+                    <div
+                      key={`ev-${ev.id}`}
+                      onClick={(e) => { e.stopPropagation(); setSelected(key); }}
+                      title={`${ev.feed_name ?? "Calendar"}: ${ev.summary ?? "Reserved"}${ev.is_checkout ? " (checkout)" : ev.is_checkin ? " (check-in)" : ""}`}
+                      className={cn(
+                        "flex w-full items-center gap-1 truncate rounded-md border-l-2 px-1.5 py-0.5 text-left text-[11px] leading-tight",
+                        ev.is_checkout
+                          ? "border-rose-500 bg-rose-50 text-rose-900"
+                          : "border-violet-400 bg-violet-50 text-violet-900",
+                      )}
+                    >
+                      <Home className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{ev.is_checkout ? "Checkout" : ev.is_checkin ? "Check-in" : ev.feed_name ?? "Reserved"}</span>
+                    </div>
+                  ))}
                   {items.slice(0, 3).map((b) => (
                     <button
                       key={b.id}
@@ -172,6 +194,8 @@ export default function AdminSchedulePage() {
         {(Object.keys(BOOKING_STATUS) as BookingStatus[]).map((s) => (
           <span key={s} className="flex items-center gap-1.5"><span className={cn("h-2 w-2 rounded-full", STATUS_DOT[s])} />{BOOKING_STATUS[s].label}</span>
         ))}
+        <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-violet-400" />Airbnb / external reservation</span>
+        <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-rose-500" />Checkout (turnover)</span>
       </div>
 
       <Sheet open={selected !== null} onOpenChange={(o) => !o && setSelected(null)}>
@@ -181,6 +205,23 @@ export default function AdminSchedulePage() {
             <Button className="w-full" size="sm" onClick={() => { if (selected) openCreate(selected); setSelected(null); }}>
               <CalendarPlus className="h-4 w-4" /> Add a job on this day
             </Button>
+
+            {selectedEvents.length > 0 ? (
+              <div className="space-y-2 rounded-xl border border-violet-200 bg-violet-50/50 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">External reservations</p>
+                {selectedEvents.map((ev) => (
+                  <div key={ev.id} className="flex items-start gap-2 text-sm">
+                    <Home className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" />
+                    <div>
+                      <span className="font-medium">{ev.feed_name ?? "Calendar"}</span>
+                      {ev.is_checkout ? <span className="ml-1 text-rose-600">· checkout (turnover clean)</span> : ev.is_checkin ? <span className="ml-1 text-violet-600">· check-in</span> : null}
+                      <span className="block text-xs text-muted-foreground">{ev.summary ?? "Reserved"}{ev.location ? ` · ${ev.location}` : ""}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
             {selectedBookings.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">No jobs scheduled.</p>
             ) : (

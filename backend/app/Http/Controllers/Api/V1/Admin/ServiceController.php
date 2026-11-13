@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Concerns\ApiResponses;
+use App\Http\Concerns\HandlesBulkDeletion;
 use App\Http\Concerns\HandlesResourceQueries;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreServiceRequest;
@@ -17,7 +18,7 @@ use Illuminate\Support\Str;
 
 class ServiceController extends Controller
 {
-    use ApiResponses, HandlesResourceQueries;
+    use ApiResponses, HandlesBulkDeletion, HandlesResourceQueries;
 
     public function __construct(private readonly ActivityLogger $activity) {}
 
@@ -95,6 +96,33 @@ class ServiceController extends Controller
         $this->activity->log('service.deleted', $service);
 
         return $this->message('Service deleted.');
+    }
+
+    public function bulkDestroy(Request $request): JsonResponse
+    {
+        $ids = $this->validateBulkIds($request, 'services');
+
+        $result = $this->runBulkDelete(
+            Service::withCount('bookings')->whereIn('id', $ids)->get(),
+            function (Service $service): ?string {
+                if ($service->bookings_count > 0) {
+                    return 'Has bookings — set it to not live instead.';
+                }
+
+                $service->delete();
+
+                return null;
+            },
+        );
+
+        $this->activity->log('service.bulk_deleted', null, $result);
+
+        $message = "Deleted {$result['deleted']} service(s).";
+        if ($result['skipped'] !== []) {
+            $message .= ' '.count($result['skipped']).' skipped because they have bookings.';
+        }
+
+        return $this->ok($result, $message);
     }
 
     public function toggleLive(Service $service): JsonResponse

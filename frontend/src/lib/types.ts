@@ -220,6 +220,47 @@ export interface AppNotification {
   created_at: string;
 }
 
+export type CalendarFeedSource = "airbnb" | "booking_com" | "vrbo" | "google" | "ical" | "other";
+
+export interface CalendarFeed {
+  id: number;
+  name: string;
+  source: CalendarFeedSource;
+  url: string;
+  is_active: boolean;
+  last_synced_at: string | null;
+  last_sync_status: "success" | "failed" | null;
+  last_sync_message: string | null;
+  events_count: number;
+  created_at: string | null;
+}
+
+export interface CalendarEvent {
+  id: number;
+  feed_id: number;
+  feed_name?: string;
+  source?: CalendarFeedSource;
+  uid: string;
+  summary: string | null;
+  location: string | null;
+  status: "reserved" | "blocked" | null;
+  starts_on: string | null;
+  ends_on: string | null;
+  is_checkin?: boolean;
+  is_checkout?: boolean;
+}
+
+export interface ScheduleDay {
+  date: string;
+  bookings: Booking[];
+  events: CalendarEvent[];
+}
+
+export interface BulkDeleteResult {
+  deleted: number;
+  skipped: Array<{ id: number; reason: string }>;
+}
+
 export interface AvailabilitySlot {
   start_time: string;
   available: boolean;
